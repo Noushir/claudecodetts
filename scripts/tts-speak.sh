@@ -81,32 +81,44 @@ def read_last_assistant(path):
         return None, None
     return last_uuid, last_text
 
-# Wait for a NEW assistant message to appear in the transcript. CC sometimes
-# fires Stop before flushing the latest response. We poll up to ~5s for a
-# UUID that differs from the last one we spoke. UUIDs are stable per-message
-# and immune to text-similarity false positives.
+# Stop hook can fire mid-turn (between assistant messages, before tool calls
+# complete). Wait for the transcript file to stabilize — no new writes for
+# ~600ms — before deciding what to speak. That's the true "agent is done"
+# signal. Cap the total wait so we don't hang forever.
 prev_uuid = ""
 try:
     if os.path.exists(last_uuid_file):
         prev_uuid = open(last_uuid_file).read().strip()
 except Exception: pass
 
-last_uuid, last_text = None, None
-MAX_ATTEMPTS = 25  # 25 * 0.2s = 5s
-for attempt in range(MAX_ATTEMPTS):
-    last_uuid, last_text = read_last_assistant(transcript_path)
-    if last_uuid and last_uuid != prev_uuid:
-        if attempt > 0: log(f"transcript caught up after {attempt} retries")
+QUIET_THRESHOLD = 0.6  # seconds of no writes to consider transcript stable
+MAX_WAIT       = 15.0  # absolute cap on waiting
+deadline = time.time() + MAX_WAIT
+last_mtime = 0
+last_change = time.time()
+while True:
+    try: cur_mtime = os.path.getmtime(transcript_path)
+    except OSError: cur_mtime = 0
+    if cur_mtime != last_mtime:
+        last_mtime = cur_mtime
+        last_change = time.time()
+    if time.time() - last_change >= QUIET_THRESHOLD:
         break
-    time.sleep(0.2)
-else:
-    log(f"no new message after {MAX_ATTEMPTS * 0.2:.1f}s (uuid still {prev_uuid[:8]}…), skip")
+    if time.time() >= deadline:
+        log(f"transcript still active after {MAX_WAIT}s, reading anyway")
+        break
+    time.sleep(0.15)
+
+last_uuid, last_text = read_last_assistant(transcript_path)
+if not last_uuid or not last_text:
+    log("no assistant text found in transcript")
     sys.exit(0)
 
-if not last_text:
-    log("no last assistant text found in transcript")
+if last_uuid == prev_uuid:
+    log(f"skip: uuid {last_uuid[:8]}… already spoken")
     sys.exit(0)
-log(f"uuid: {last_uuid[:8] if last_uuid else 'none'}… text head: {last_text[:80]!r}")
+
+log(f"uuid: {last_uuid[:8]}… text head: {last_text[:80]!r}")
 
 def clean(t: str) -> str:
     t = re.sub(r"```.*?```", " ", t, flags=re.DOTALL)

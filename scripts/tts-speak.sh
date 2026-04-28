@@ -5,7 +5,7 @@
 STATE_FILE="$HOME/.claude/tts-state.json"
 PID_FILE="$HOME/.claude/tts-speak.pid"
 LOG_FILE="$HOME/.claude/tts-speak.log"
-LAST_HASH_FILE="$HOME/.claude/tts-last-hash"
+LAST_UUID_FILE="$HOME/.claude/tts-last-uuid"
 VOICE=""   # empty → use macOS system default voice (set in Spoken Content)
 RATE=185
 
@@ -19,15 +19,15 @@ echo "[$(date '+%H:%M:%S')] hook fired" >> "$LOG_FILE"
 [ -f "$STATE_FILE" ] || { echo "  no state file, exit" >> "$LOG_FILE"; exit 0; }
 
 HOOK_INPUT=$(cat)
-export HOOK_INPUT STATE_FILE PID_FILE LOG_FILE LAST_HASH_FILE VOICE RATE
+export HOOK_INPUT STATE_FILE PID_FILE LOG_FILE LAST_UUID_FILE VOICE RATE
 
 /usr/bin/env python3 <<'PY'
-import json, os, re, subprocess, signal, sys, hashlib, time
+import json, os, re, subprocess, sys, time
 
 state_file     = os.environ["STATE_FILE"]
 pid_file       = os.environ["PID_FILE"]
 log_file       = os.environ["LOG_FILE"]
-last_hash_file = os.environ["LAST_HASH_FILE"]
+last_uuid_file = os.environ["LAST_UUID_FILE"]
 voice          = os.environ["VOICE"]
 rate           = os.environ["RATE"]
 hook_input     = os.environ.get("HOOK_INPUT", "")
@@ -59,8 +59,9 @@ except Exception as e:
     sys.exit(0)
 log(f"transcript: {transcript_path}")
 
-def read_last_assistant_text(path):
-    last = None
+def read_last_assistant(path):
+    """Return (uuid, text) of the most recent assistant text message, or (None, None)."""
+    last_uuid, last_text = None, None
     try:
         with open(path) as f:
             for line in f:
@@ -73,35 +74,39 @@ def read_last_assistant_text(path):
                 if not isinstance(content, list): continue
                 chunks = [c.get("text","") for c in content if isinstance(c, dict) and c.get("type") == "text"]
                 text = "\n".join(t for t in chunks if t).strip()
-                if text: last = text
+                if text:
+                    last_uuid = rec.get("uuid") or rec.get("message", {}).get("id")
+                    last_text = text
     except Exception:
-        return None
-    return last
+        return None, None
+    return last_uuid, last_text
 
-# Retry loop: Claude Code sometimes fires Stop before flushing the assistant's
-# final response to the transcript file. If we see the same text as last
-# spoken, wait briefly for the new message to land, up to ~1.5s total.
-prev_hash = ""
+# Wait for a NEW assistant message to appear in the transcript. CC sometimes
+# fires Stop before flushing the latest response. We poll up to ~5s for a
+# UUID that differs from the last one we spoke. UUIDs are stable per-message
+# and immune to text-similarity false positives.
+prev_uuid = ""
 try:
-    if os.path.exists(last_hash_file):
-        prev_hash = open(last_hash_file).read().strip()
+    if os.path.exists(last_uuid_file):
+        prev_uuid = open(last_uuid_file).read().strip()
 except Exception: pass
 
-last_text = None
-for attempt in range(8):
-    last_text = read_last_assistant_text(transcript_path)
-    if last_text is None:
-        time.sleep(0.2); continue
-    raw_hash = hashlib.sha256(last_text.encode("utf-8")).hexdigest()
-    if raw_hash != prev_hash:
+last_uuid, last_text = None, None
+MAX_ATTEMPTS = 25  # 25 * 0.2s = 5s
+for attempt in range(MAX_ATTEMPTS):
+    last_uuid, last_text = read_last_assistant(transcript_path)
+    if last_uuid and last_uuid != prev_uuid:
         if attempt > 0: log(f"transcript caught up after {attempt} retries")
         break
     time.sleep(0.2)
+else:
+    log(f"no new message after {MAX_ATTEMPTS * 0.2:.1f}s (uuid still {prev_uuid[:8]}…), skip")
+    sys.exit(0)
 
 if not last_text:
-    log("no last assistant text found in transcript after retries")
+    log("no last assistant text found in transcript")
     sys.exit(0)
-log(f"last_text head: {last_text[:80]!r}")
+log(f"uuid: {last_uuid[:8] if last_uuid else 'none'}… text head: {last_text[:80]!r}")
 
 def clean(t: str) -> str:
     t = re.sub(r"```.*?```", " ", t, flags=re.DOTALL)
@@ -136,15 +141,6 @@ if mode == "brief":
 
 cleaned = cleaned[:1200]
 
-# De-dup: skip if we already spoke this exact RAW message (prevents re-speaking
-# when the Stop hook fires twice for the same assistant message). Hash is on
-# raw last_text, matching the retry loop above so brief/full mode toggles still
-# re-speak the same source message correctly.
-text_hash = hashlib.sha256(last_text.encode("utf-8")).hexdigest()
-if text_hash == prev_hash:
-    log("skip: same text as last spoken")
-    sys.exit(0)
-
 log(f"speaking: {cleaned[:80]!r}... ({len(cleaned)} chars)")
 
 # Note: prior `say` is intentionally NOT killed here. Killing on every Stop hook
@@ -162,7 +158,7 @@ proc = subprocess.Popen(
 )
 try: open(pid_file, "w").write(str(proc.pid))
 except Exception: pass
-try: open(last_hash_file, "w").write(text_hash)
+try: open(last_uuid_file, "w").write(last_uuid or "")
 except Exception: pass
 log(f"spawned say pid={proc.pid}")
 PY

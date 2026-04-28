@@ -2,6 +2,13 @@
 
 Hear Claude Code respond. A Claude Code plugin that speaks each assistant turn aloud through macOS's `say` command, controlled by slash commands. Pairs naturally with Claude Code's built-in voice input for a hands-free coding loop.
 
+> **Quick install (copy-paste in Claude Code):**
+> ```
+> /plugin marketplace add https://github.com/Noushir/claudecodetts.git
+> /plugin install claude-code-tts
+> ```
+> Restart Claude Code, then `/tts-on` and you're listening.
+
 ## Why
 
 Claude Code already supports voice input. With this plugin, the loop closes — you talk, it talks back, you keep your eyes on the diff. Set your system voice to a Siri voice (Arthur, Stephanie, etc.) and you have a Jarvis-like coding assistant.
@@ -13,12 +20,16 @@ Claude Code already supports voice input. With this plugin, the loop closes — 
 
 ## Install
 
+In Claude Code, run these two slash commands:
+
 ```
-/plugin marketplace add Noushir/claudecodetts
+/plugin marketplace add https://github.com/Noushir/claudecodetts.git
 /plugin install claude-code-tts
 ```
 
-Restart Claude Code once after installing so the Stop hook is loaded.
+Then **restart Claude Code once** so the Stop hook is loaded.
+
+> **Why the full HTTPS URL?** Claude Code's `<owner>/<repo>` shorthand clones via SSH, which fails with a host-key error on machines that have never connected to GitHub over SSH. The HTTPS URL works for everyone with no setup.
 
 ## One-time voice setup (recommended)
 

@@ -5,8 +5,8 @@
   "author": {
     "name": "Mohammed Noushir"
   },
-  "homepage": "",
-  "repository": "",
+  "homepage": "https://github.com/Noushir/claudecodetts",
+  "repository": "https://github.com/Noushir/claudecodetts.git",
   "license": "MIT",
   "keywords": ["tts", "voice", "speech", "macos", "accessibility"]
 }

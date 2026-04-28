@@ -22,7 +22,7 @@ HOOK_INPUT=$(cat)
 export HOOK_INPUT STATE_FILE PID_FILE LOG_FILE LAST_UUID_FILE VOICE RATE
 
 /usr/bin/env python3 <<'PY'
-import json, os, re, subprocess, sys, time
+import json, os, re, signal, subprocess, sys, time
 
 state_file     = os.environ["STATE_FILE"]
 pid_file       = os.environ["PID_FILE"]
@@ -143,9 +143,19 @@ cleaned = cleaned[:1200]
 
 log(f"speaking: {cleaned[:80]!r}... ({len(cleaned)} chars)")
 
-# Note: prior `say` is intentionally NOT killed here. Killing on every Stop hook
-# fire was clipping speech when the user sent a follow-up message. /tts-off
-# kills speech explicitly when silence is wanted.
+# Kill any still-running `say` from a previous turn before starting this one.
+# Safe with UUID-based dedup above: we only get here when the message is
+# genuinely new, so we won't ever kill a `say` that's reading the same content.
+try:
+    if os.path.exists(pid_file):
+        old_pid = int(open(pid_file).read().strip())
+        try:
+            os.kill(old_pid, signal.SIGTERM)
+            log(f"killed prior say pid={old_pid}")
+        except ProcessLookupError:
+            pass
+except Exception:
+    pass
 
 cmd = ["/usr/bin/say", "-r", rate]
 if voice:

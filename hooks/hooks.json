@@ -1,12 +1,14 @@
 {
-  "Stop": [
-    {
-      "hooks": [
-        {
-          "type": "command",
-          "command": "${CLAUDE_PLUGIN_ROOT}/scripts/tts-speak.sh"
-        }
-      ]
-    }
-  ]
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/tts-speak.sh"
+          }
+        ]
+      }
+    ]
+  }
 }

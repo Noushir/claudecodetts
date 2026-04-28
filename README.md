@@ -14,7 +14,7 @@ Claude Code already supports voice input. With this plugin, the loop closes — 
 ## Install
 
 ```
-/plugin marketplace add <your-marketplace-repo>
+/plugin marketplace add Noushir/claudecodetts
 /plugin install claude-code-tts
 ```
 

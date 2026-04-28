@@ -1,6 +1,6 @@
 {
   "name": "claude-code-tts",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Hear Claude Code respond. Speaks each assistant turn aloud using macOS `say`, with toggle and brief/full modes via slash commands. Pairs naturally with Claude Code's built-in voice input for a hands-free coding loop.",
   "author": {
     "name": "Mohammed Noushir"

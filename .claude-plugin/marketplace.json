@@ -1,0 +1,23 @@
+{
+  "name": "claudecodetts",
+  "owner": {
+    "name": "Noushir"
+  },
+  "metadata": {
+    "description": "Hear Claude Code respond — text-to-speech via macOS `say`.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "claude-code-tts",
+      "description": "Speak each Claude Code assistant turn aloud through macOS's `say` command. Toggle on/off and switch between brief (last sentence) and full (whole message) modes via slash commands. Pairs naturally with Claude Code's built-in voice input for a hands-free coding loop.",
+      "author": {
+        "name": "Mohammed Noushir"
+      },
+      "category": "productivity",
+      "source": "./",
+      "homepage": "https://github.com/Noushir/claudecodetts",
+      "strict": false
+    }
+  ]
+}
